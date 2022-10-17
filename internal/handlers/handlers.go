@@ -4,11 +4,13 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"sort"
 
 	"github.com/CloudyKit/jet/v6"
 	"github.com/gorilla/websocket"
 )
 
+// creating a channel
 var wsChan = make(chan WsPayload)
 
 var clients = make(map[WebSocketConnection]string)
@@ -26,6 +28,7 @@ var upgradeConnection = websocket.Upgrader{
 	},
 }
 
+// running home
 func Home(w http.ResponseWriter, r *http.Request) {
 	err := renderPage(w, "home.jet", nil)
 	if err != nil {
@@ -40,9 +43,10 @@ type WebSocketConnection struct {
 
 // WsJsonResponse defines the response sent back from websocket
 type WsJsonResponse struct {
-	Action      string `json:"action"`
-	Message     string `json:"message"`
-	MessageType string `json:"message_type"`
+	Action         string   `json:"action"`
+	Message        string   `json:"message"`
+	MessageType    string   `json:"message_type"`
+	ConnectedUsers []string `json:"connected_users"`
 }
 
 type WsPayload struct {
@@ -97,11 +101,37 @@ func ListenToWsChannel() {
 	var response WsJsonResponse
 	for {
 		e := <-wsChan
-		response.Action = "Got here"
-		response.Message = fmt.Sprintf("Some Message, and action was %s", e.Action)
-		broadcastToAll(response)
+		switch e.Action {
+		//Get a list of all users and send it back via broadcast
+		case "username":
+			clients[e.Conn] = e.Username
+			users := getUserList()
+			response.Action = "list_users"
+			response.ConnectedUsers = users
+			broadcastToAll(response)
+
+		case "left":
+			response.Action = "list_users"
+			delete(clients, e.Conn)
+			users := getUserList()
+			response.ConnectedUsers = users
+			broadcastToAll(response)
+		}
+		// response.Action = "Got here"
+		// response.Message = fmt.Sprintf("Some Message, and action was %s", e.Action)
+		// broadcastToAll(response)
 	}
 
+}
+func getUserList() []string {
+	var userList []string
+	for _, x := range clients {
+		if x != "" {
+			userList = append(userList, x)
+		}
+	}
+	sort.Strings(userList)
+	return userList
 }
 
 func broadcastToAll(response WsJsonResponse) {
