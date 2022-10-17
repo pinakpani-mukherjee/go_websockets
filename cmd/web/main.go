@@ -1,12 +1,17 @@
 package main
 
 import (
+	"cmd/web/main.go/internal/handlers"
 	"log"
 	"net/http"
 )
 
 func main() {
 	mux := routes()
+
+	log.Println("Starting channel listener")
+
+	go handlers.ListenToWsChannel()
 
 	log.Println("Starting web server on port 8080.")
 
